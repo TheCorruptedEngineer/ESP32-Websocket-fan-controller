@@ -4,8 +4,7 @@
 #include <WebSocketsServer.h>
 #include <EEPROM.h>
 #define EEPROM_SIZE 1
-const char* ssid = "-";
-const char* password = "-";
+
 String messagebanana;
 // Globals 
 WebSocketsServer webSocket = WebSocketsServer(80);
@@ -23,8 +22,8 @@ const int enable_pin = 21;
 byte enablePinState = LOW;
 
 
-int counter = 0; 
-#include <ESP32Encoder.h>
+int counter = 50; 
+#include <ESP32Encoder.h> // https://github.com/madhephaestus/ESP32Encoder.git 
 ESP32Encoder encoder;
 #define CLK 4 // CLK ENCODER 
 #define DT 15 // DT ENCODER 
@@ -45,7 +44,6 @@ void setup() {
   Serial.begin(115200);
   if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3D for 128x64
     Serial.println(F("SSD1306 allocation failed"));
-    for(;;);
   }
 
   EEPROM.begin(EEPROM_SIZE);
@@ -69,7 +67,7 @@ void setup() {
   display.display(); 
 
   // Start WebSocket server and assign callback
-  webSocket.begin();
+  //webSocket.begin();
   webSocket.onEvent(onWebSocketEvent);
 
   // Configure LED PWM functionality
@@ -85,18 +83,12 @@ void setup() {
   digitalWrite(enable_pin, enablePinState); // Set the LED state
   attachInterrupt(digitalPinToInterrupt(button_pin), button_press, FALLING);
 
-  encoder.attachHalfQuad ( DT, CLK );
-  encoder.setCount ( 0 );
-
-
-
-
 
   //disableCore0WDT();
   xTaskCreatePinnedToCore(
     Task1code,   /* Task function. */
     "Task1",     /* Name of task. */
-    20000,       /* Stack size of task */
+    10000,       /* Stack size of task */
     NULL,        /* Parameter of the task */
     1,           /* Priority of the task */
     NULL,        /* Task handle to keep track of created task */
@@ -220,15 +212,15 @@ void button_press(){
 void Task1code( void * pvParameters ) {
   Serial.print("Task1 running on core ");
   Serial.println(xPortGetCoreID());
+  encoder.attachHalfQuad ( DT, CLK );
+  encoder.setCount ( 0 );
   for (;;) {
     ledcWrite(ledChannel, counter);
     if (counter == 0){
       digitalWrite(enable_pin,!enablePinState);
     }
-    else {
-      digitalWrite(enable_pin,enablePinState);
-    }
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    else digitalWrite(enable_pin,enablePinState);
+    vTaskDelay(500 / portTICK_PERIOD_MS);
   }
 }
 
@@ -252,9 +244,9 @@ void Task2code( void * pvParameters ) {
     display.setCursor(0, 36); // Set cursor to the next line
     display.println("S: " + String(counter) + "        ");
     Serial.print("Position: ");
-    //Serial.println(counter);
     long newPosition = encoder.getCount() / 2;
     Serial.println(newPosition);
+    //Serial.println(counter);
     display.display(); 
     vTaskDelay(1000 / portTICK_PERIOD_MS);
   }
@@ -262,5 +254,5 @@ void Task2code( void * pvParameters ) {
 
 void loop() {
   webSocket.loop();
-  vTaskDelay(500 / portTICK_PERIOD_MS);
+  delay(1000);
 }
