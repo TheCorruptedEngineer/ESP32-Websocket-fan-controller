@@ -4,8 +4,8 @@
 #include <WebSocketsServer.h>
 #include <EEPROM.h>
 #define EEPROM_SIZE 1
-const char* ssid = "MaxNet";
-const char* password = "neseremseuwifi";
+const char* ssid = "-";
+const char* password = "-";
 String messagebanana;
 // Globals 
 WebSocketsServer webSocket = WebSocketsServer(80);
@@ -68,7 +68,7 @@ void setup() {
   display.display(); 
 
   // Start WebSocket server and assign callback
-  //webSocket.begin();
+  webSocket.begin();
   webSocket.onEvent(onWebSocketEvent);
 
   // Configure LED PWM functionality
@@ -83,6 +83,9 @@ void setup() {
   enablePinState = EEPROM.read(0); 
   digitalWrite(enable_pin, enablePinState); // Set the LED state
   attachInterrupt(digitalPinToInterrupt(button_pin), button_press, FALLING);
+
+  encoder.attachHalfQuad ( DT, CLK );
+  encoder.setCount ( 0 );
 
 
   //disableCore0WDT();
@@ -213,8 +216,6 @@ void button_press(){
 void Task1code( void * pvParameters ) {
   Serial.print("Task1 running on core ");
   Serial.println(xPortGetCoreID());
-  encoder.attachHalfQuad ( DT, CLK );
-  encoder.setCount ( 0 );
   for (;;) {
     ledcWrite(ledChannel, counter);
     if (counter == 0){
@@ -255,5 +256,5 @@ void Task2code( void * pvParameters ) {
 
 void loop() {
   webSocket.loop();
-  delay(1000);
+  vTaskDelay(500 / portTICK_PERIOD_MS);
 }
