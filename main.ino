@@ -5,6 +5,10 @@
 #include <EEPROM.h>
 #define EEPROM_SIZE 1
 
+
+#define R1 10000
+#define R2 20000
+>>>>>>> f49023d (Update main.ino)
 const char* ssid = "-";
 const char* password = "-";
 
@@ -15,15 +19,19 @@ int speed = 0; // Global variable to store speed value
 int RPM = 0;   // Global variable to store RPM value
 int Hz = 0;    // Global variable to store Hz value
 volatile int counter_rpm = 0;
-const int ledPin = 16;  // 16 corresponds to GPIO16
+const int pwmPin = 32;  // 16 corresponds to GPIO16
 const int freq = 25000;
 const int ledChannel = 0;
 const int resolution = 8;
 const int tacho_pin = 25;
 const int button_pin = 33;
-const int enable_pin = 21;
+const int enable_pin = 19;
+const int current_pin = 26;
+int currentA = 0;
 byte enablePinState = LOW;
 
+#include <ESP32Servo.h>
+ESP32PWM pwm;
 
 int counter = 50; 
 #include <ESP32Encoder.h> // https://github.com/madhephaestus/ESP32Encoder.git 
@@ -48,7 +56,7 @@ void setup() {
   if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3D for 128x64
     Serial.println(F("SSD1306 allocation failed"));
   }
-
+  currentA = analogRead(current_pin);
   EEPROM.begin(EEPROM_SIZE);
   // Connect to access point
   Serial.println("Connecting");
@@ -73,11 +81,6 @@ void setup() {
   webSocket.begin();
   webSocket.onEvent(onWebSocketEvent);
 
-  // Configure LED PWM functionality
-  ledcSetup(ledChannel, freq, resolution);
-  ledcAttachPin(ledPin, ledChannel);
-  ledcWrite(ledChannel, counter);
-
   // Setup interrupts for encoder and fan tachometer
   pinMode(button_pin, INPUT_PULLUP);
   pinMode(tacho_pin, INPUT);
@@ -89,6 +92,9 @@ void setup() {
   encoder.attachHalfQuad ( DT, CLK );
   encoder.setCount ( 0 );
 
+	ESP32PWM::allocateTimer(3);
+  pwm.attachPin(pwmPin, freq, resolution);
+  pwm.write(counter);
 
   //disableCore0WDT();
   xTaskCreatePinnedToCore(
@@ -149,10 +155,12 @@ void onWebSocketEvent(uint8_t num,
       else if (messagebanana.equals("off")) {
         webSocket.sendTXT(num, "turning off");
         speed = counter;
+        encoder.setCount(0); // Set encoder count to 0
         counter = 0;
       }
       else if (messagebanana.equals("on")) {
         response = "turning on, speed = " + String(speed);
+        encoder.setCount(speed * 2); // Set encoder count to 0
         counter = speed;
         webSocket.sendTXT(num, response);
       }
@@ -174,9 +182,9 @@ void onWebSocketEvent(uint8_t num,
           Serial.println(speedString.length());
           // Convert speed string to an integer
           speed = speedString.toInt();
-          if(speed > 255) speed = 255,counter = 255;
-          else if (speed < 0) speed = 0,counter = 0;
-          else counter = speed;
+          if(speed > 255) speed = 255,counter = 255,encoder.setCount(510);
+          else if (speed < 0) speed = 0,counter = 0,encoder.setCount(0);
+          else counter = speed,encoder.setCount(speed * 2);
           Serial.print("Set speed to: ");
           Serial.println(speed);
           // Send a message back to the client indicating the current speed
@@ -205,6 +213,23 @@ void onWebSocketEvent(uint8_t num,
   }
 }
 
+void updateCount() {
+    long new_count = encoder.getCount() / 2; // Get the new count value
+
+    // Check if new_count is less than 0
+    if (new_count < 0) {
+        new_count = 0; // Set new_count to 0
+        encoder.setCount(0); // Set encoder count to 0
+    }
+
+    // Check if new_count is greater than 255
+    if (new_count > 255) {
+        new_count = 255; // Set new_count to 255
+        encoder.setCount(510); // Set encoder count to 255
+    }
+
+    counter = new_count; // Update the global count variable with the new value
+}
 
 void button_press(){
   if (counter == 0) {
@@ -219,12 +244,11 @@ void Task1code( void * pvParameters ) {
   Serial.print("Task1 running on core ");
   Serial.println(xPortGetCoreID());
   for (;;) {
-    ledcWrite(ledChannel, counter);
     if (counter == 0){
       digitalWrite(enable_pin,!enablePinState);
     }
     else digitalWrite(enable_pin,enablePinState);
-    vTaskDelay(500 / portTICK_PERIOD_MS);
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
   }
 }
 
@@ -237,6 +261,7 @@ void Task2code( void * pvParameters ) {
     detachInterrupt(digitalPinToInterrupt(tacho_pin));
     Hz = counter_rpm / 2;
     RPM = Hz * 60 / 2;
+    currentA = analogRead(current_pin);
     display.setCursor(0, 26); // Set cursor to the next line
     display.println("HZ: " + String(Hz) + "       ");
     Serial.print("Hz: ");
@@ -246,11 +271,19 @@ void Task2code( void * pvParameters ) {
     Serial.print("RPM: ");
     Serial.println(RPM);
     display.setCursor(0, 36); // Set cursor to the next line
-    display.println("S: " + String(counter) + "        ");
+    updateCount();
     Serial.print("Position: ");
-    long newPosition = encoder.getCount() / 2;
-    Serial.println(newPosition);
-    //Serial.println(counter);
+    display.println("S: " + String(counter) + "        ");
+    Serial.println(counter);
+    Serial.print("Current Value: ");
+    Serial.println(currentA);
+    display.setCursor(0, 46); // Set cursor to the next line
+    display.println("A: " + String(currentA) + "       ");
+    pwm.write(counter);
+    //long newPosition = encoder.getCount() / 2;
+    // display.println("S: " + String(newPosition) + "        ");
+    //Serial.println(newPosition);
+    //pwm.write(newPosition);
     display.display(); 
     vTaskDelay(1000 / portTICK_PERIOD_MS);
   }
