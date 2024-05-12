@@ -26,8 +26,8 @@ const int resolution = 8;
 const int tacho_pin = 25;
 const int button_pin = 33;
 const int enable_pin = 19;
-const int current_pin = 26;
-int currentA = 0;
+const int current_pin = 34;
+float currentA = 0;
 byte enablePinState = LOW;
 
 #include <ESP32Servo.h>
@@ -56,7 +56,6 @@ void setup() {
   if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3D for 128x64
     Serial.println(F("SSD1306 allocation failed"));
   }
-  currentA = analogRead(current_pin);
   EEPROM.begin(EEPROM_SIZE);
   // Connect to access point
   Serial.println("Connecting");
@@ -95,6 +94,7 @@ void setup() {
 	ESP32PWM::allocateTimer(3);
   pwm.attachPin(pwmPin, freq, resolution);
   pwm.write(counter);
+
 
   //disableCore0WDT();
   xTaskCreatePinnedToCore(
@@ -261,7 +261,10 @@ void Task2code( void * pvParameters ) {
     detachInterrupt(digitalPinToInterrupt(tacho_pin));
     Hz = counter_rpm / 2;
     RPM = Hz * 60 / 2;
-    currentA = analogRead(current_pin);
+    float adc = analogRead(current_pin);
+    float adc_voltage = adc * (3.3 / 4096.0);
+    float currentA_voltage = (adc_voltage * (R1+R2)/R2);
+    currentA = (currentA_voltage - 2.5) / 0.100;
     display.setCursor(0, 26); // Set cursor to the next line
     display.println("HZ: " + String(Hz) + "       ");
     Serial.print("Hz: ");
