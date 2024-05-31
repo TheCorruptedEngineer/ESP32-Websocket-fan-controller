@@ -254,6 +254,7 @@ void Task2code( void * pvParameters ) {
   for (;;) {
     counter_rpm = 0;
     attachInterrupt(digitalPinToInterrupt(tacho_pin), rpm_fan, CHANGE);
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
     detachInterrupt(digitalPinToInterrupt(tacho_pin));
     Hz = counter_rpm / 2;
     RPM = Hz * 60 / 2;
@@ -284,7 +285,6 @@ void Task2code( void * pvParameters ) {
     //Serial.println(newPosition);
     //pwm.write(newPosition);
     display.display(); 
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
   }
 }
 
