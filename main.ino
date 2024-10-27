@@ -4,14 +4,10 @@
 #include <WebSocketsServer.h>
 #include <EEPROM.h>
 #define EEPROM_SIZE 1
-
-
 #define R1 10000
 #define R2 20000
->>>>>>> f49023d (Update main.ino)
 const char* ssid = "-";
-const char* password = "-";
-
+const char* password = "-"
 String messagebanana;
 // Globals 
 WebSocketsServer webSocket = WebSocketsServer(80);
@@ -24,10 +20,10 @@ const int freq = 25000;
 const int ledChannel = 0;
 const int resolution = 8;
 const int tacho_pin = 25;
-const int button_pin = 33;
+const int button_pin = 14;
 const int enable_pin = 19;
-const int current_pin = 34;
-float currentA = 0;
+///const int current_pin = 34;
+///float currentA = 0;
 byte enablePinState = LOW;
 
 #include <ESP32Servo.h>
@@ -86,7 +82,6 @@ void setup() {
   pinMode(enable_pin, OUTPUT);
   enablePinState = EEPROM.read(0); 
   digitalWrite(enable_pin, enablePinState); // Set the LED state
-  attachInterrupt(digitalPinToInterrupt(button_pin), button_press, FALLING);
 
   encoder.attachHalfQuad ( DT, CLK );
   encoder.setCount ( 0 );
@@ -182,7 +177,7 @@ void onWebSocketEvent(uint8_t num,
           Serial.println(speedString.length());
           // Convert speed string to an integer
           speed = speedString.toInt();
-          if(speed > 255) speed = 255,counter = 255,encoder.setCount(510);
+          if(speed > 100) speed = 100,counter = 100,encoder.setCount(200);
           else if (speed < 0) speed = 0,counter = 0,encoder.setCount(0);
           else counter = speed,encoder.setCount(speed * 2);
           Serial.print("Set speed to: ");
@@ -222,22 +217,26 @@ void updateCount() {
         encoder.setCount(0); // Set encoder count to 0
     }
 
-    // Check if new_count is greater than 255
-    if (new_count > 255) {
-        new_count = 255; // Set new_count to 255
-        encoder.setCount(510); // Set encoder count to 255
+    // Check if new_count is greater than 100
+    if (new_count > 100) {
+        new_count = 100; // Set new_count to 100
+        encoder.setCount(200); // Set encoder count to 100
     }
 
     counter = new_count; // Update the global count variable with the new value
 }
 
 void button_press(){
-  if (counter == 0) {
+    if (counter == 0) {
+      encoder.setCount(speed * 2);
       counter = speed;
-  }
-  else {
-    speed = counter;
-    counter = 0;}
+    }
+    else {
+      speed = counter;
+      encoder.setCount(0);
+      counter = 0;
+    }
+    
 }
 
 void Task1code( void * pvParameters ) {
@@ -249,8 +248,12 @@ void Task1code( void * pvParameters ) {
     }
     else digitalWrite(enable_pin,enablePinState);
     vTaskDelay(1000 / portTICK_PERIOD_MS);
+    if(button_pin == LOW){
+      button_press();
+      delay(100);
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
   }
-}
+}}
 
 void Task2code( void * pvParameters ) {
   Serial.print("Task2 running on core ");
@@ -258,13 +261,14 @@ void Task2code( void * pvParameters ) {
   for (;;) {
     counter_rpm = 0;
     attachInterrupt(digitalPinToInterrupt(tacho_pin), rpm_fan, CHANGE);
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
     detachInterrupt(digitalPinToInterrupt(tacho_pin));
     Hz = counter_rpm / 2;
     RPM = Hz * 60 / 2;
-    float adc = analogRead(current_pin);
-    float adc_voltage = adc * (3.3 / 4096.0);
-    float currentA_voltage = (adc_voltage * (R1+R2)/R2);
-    currentA = (currentA_voltage - 2.5) / 0.100;
+    ///float adc = analogRead(current_pin);
+    ///float adc_voltage = adc * (3.3 / 4096.0);
+    ///float currentA_voltage = (adc_voltage * (R1+R2)/R2);
+    ///currentA = (currentA_voltage - 2.5) / 0.100;
     display.setCursor(0, 26); // Set cursor to the next line
     display.println("HZ: " + String(Hz) + "       ");
     Serial.print("Hz: ");
@@ -278,17 +282,16 @@ void Task2code( void * pvParameters ) {
     Serial.print("Position: ");
     display.println("S: " + String(counter) + "        ");
     Serial.println(counter);
-    Serial.print("Current Value: ");
-    Serial.println(currentA);
-    display.setCursor(0, 46); // Set cursor to the next line
-    display.println("A: " + String(currentA) + "       ");
-    pwm.write(counter);
+    ///Serial.print("Current Value: ");
+    ///Serial.println(currentA);
+    ///display.setCursor(0, 46); // Set cursor to the next line
+    ///display.println("A: " + String(currentA) + "       ");
+    pwm.write(map(counter, 0, 100, 0, 255));
     //long newPosition = encoder.getCount() / 2;
     // display.println("S: " + String(newPosition) + "        ");
     //Serial.println(newPosition);
     //pwm.write(newPosition);
     display.display(); 
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
   }
 }
 
